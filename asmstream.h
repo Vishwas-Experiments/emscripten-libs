@@ -1,4 +1,5 @@
 #include <emscripten.h>
+#include <iomanip>
 
 namespace std {
   struct AsmStream {
@@ -24,6 +25,12 @@ namespace std {
   AsmStream& operator<<(AsmStream &outStream, const double data) {
     EM_ASM({
       writeToConsole($0);
+    }, data);
+    return outStream;
+  }
+  AsmStream& operator<<(AsmStream &outStream, const __iom_t4<char> data) {
+    EM_ASM({
+      writeToConsole(UTF8ToString($0));
     }, data);
     return outStream;
   }
