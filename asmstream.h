@@ -1,110 +1,84 @@
 #include <emscripten.h>
-#include <iomanip>
+#include <iostream>
 
 namespace std {
+  struct AsmOutStream : public streambuf {
+  protected:
+    streamsize xsputn(const char* s, streamsize n) override {
+      EM_ASM({
+        writeToConsole(UTF8ToString($0));
+      }, s);
+      return n;
+    };
+
+    int overflow(int ch) override {
+      EM_ASM({
+        writeToConsole(UTF8ToString($0));
+      }, ch);
+      return ch;
+    }
+  };
+
+  struct AsmInStream : public streambuf {
+  protected:
+    int underflow() override {
+      int gotInput = 0, data;
+      while(!gotInput) {
+        gotInput = EM_ASM_INT({
+          console.log('Checking');
+          if(consoleInput === null) {
+            return 0;
+          } else {
+            return 1;
+          }
+        }, 0);
+        if(!gotInput) emscripten_sleep(200);
+      }
+      return EM_ASM_INT({
+        if(consoleInput.trim() === "") {
+          flushConsoleInput();
+          return $0;
+        }
+        var value = consoleInput.charCodeAt(0);
+        console.log(value, 'underflow');
+        return value;
+      }, EOF);
+    }
+
+    int uflow() override {
+      int gotInput = 0, data;
+      while(!gotInput) {
+        gotInput = EM_ASM_INT({{
+          console.log('Checking');
+          if(consoleInput === null) {
+            return 0;
+          } else {
+            return 1;
+          }
+        }}, 0);
+        if(!gotInput) emscripten_sleep(200);
+      }
+      return EM_ASM_INT({(
+        if(consoleInput.trim() === "") {
+          flushConsoleInput();
+          return $0;
+        }
+        var value = consoleInput.charCodeAt(0);
+        consoleInput = consoleInput.slice(1);
+        console.log(value, 'uflow');
+        return value;
+      )}, EOF);
+    }
+  };
+
   struct AsmStream {
     int id;
   };
 
-  AsmStream cin, cout, cerr;
+  AsmInStream _asmcin;
+  AsmOutStream _asmcout, _asmcerr;
+  ostream asmcout(&_asmcout);
+  ostream asmcerr(&_asmcerr);
 
-  AsmStream& operator<<(AsmStream &outStream, const int data) {
-    EM_ASM({
-      writeToConsole($0);
-    }, data);
-    return outStream;
-  }
-
-  AsmStream& operator<<(AsmStream &outStream, const float data) {
-    EM_ASM({
-      writeToConsole($0);
-    }, data);
-    return outStream;
-  }
-
-  AsmStream& operator<<(AsmStream &outStream, const double data) {
-    EM_ASM({
-      writeToConsole($0);
-    }, data);
-    return outStream;
-  }
-  AsmStream& operator<<(AsmStream &outStream, const __iom_t4<char> data) {
-    EM_ASM({
-      writeToConsole(UTF8ToString($0));
-    }, data);
-    return outStream;
-  }
-
-  AsmStream& operator<<(AsmStream& outStream, const char data[]) {
-    EM_ASM({
-      writeToConsole(UTF8ToString($0));
-    }, data);
-    return outStream;
-  }
-
-  AsmStream& operator>>(AsmStream& inStream, int& data) {
-    int gotInput = 0;
-    while(!gotInput) {
-      data = EM_ASM_INT({
-        console.log('Checking', $0);
-        if(consoleInput === null) {
-          return -20968;
-        } else {
-          var temp = consoleInput;
-          flushConsoleInput();
-          return temp;
-        }
-      }, data);
-      if(data != -20968) {
-        gotInput = 1;
-        break;
-      }
-      emscripten_sleep(200);
-    }
-    return inStream;
-  }
-
-  AsmStream& operator>>(AsmStream& inStream, float& data) {
-    int gotInput = 0;
-    while(!gotInput) {
-      data = (float) EM_ASM_DOUBLE({
-        console.log('Checking', $0);
-        if(consoleInput === null) {
-          return -20968.0;
-        } else {
-          var temp = consoleInput;
-          flushConsoleInput();
-          return temp;
-        }
-      }, data);
-      if(data != -20968.0) {
-        gotInput = 1;
-        break;
-      }
-      emscripten_sleep(200);
-    }
-    return inStream;
-  }
-
-  AsmStream& operator>>(AsmStream& inStream, double& data) {
-    int gotInput = 0;
-    while(!gotInput) {
-      data = EM_ASM_DOUBLE({
-        console.log('Checking', $0);
-        if(consoleInput === null) {
-          return -20968.0;
-        } else {
-          var temp = consoleInput;
-          flushConsoleInput();
-          return temp;
-        }
-      }, data);
-      if(data != -20968.0) {
-        gotInput = 1;
-        break;
-      }
-      emscripten_sleep(200);
-    }
-    return inStream;
-  }
+  istream asmcin(&_asmcin);
 }
