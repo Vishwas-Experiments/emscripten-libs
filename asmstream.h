@@ -21,58 +21,107 @@ namespace std {
 
   struct AsmInStream : public streambuf {
   protected:
-    int underflow() override {
-      int gotInput = 0, data;
-      while(!gotInput) {
-        gotInput = EM_ASM_INT({
-          console.log('Checking');
-          if(consoleInput === null) {
-            return 0;
-          } else {
-            return 1;
-          }
-        }, 0);
-        if(!gotInput) emscripten_sleep(200);
-      }
-      return EM_ASM_INT({
-        if(consoleInput.trim() === "") {
-          flushConsoleInput();
-          return $0;
-        }
-        var value = consoleInput.charCodeAt(0);
-        console.log(value, 'underflow');
-        return value;
-      }, EOF);
-    }
+    // streambuf::int_type underflow() override {
+    //   int gotInput = 0, data;
+    //   while(!gotInput) {
+    //     gotInput = checkForInput();
+    //     if(!gotInput) emscripten_sleep(200);
+    //   }
+    //   return getInput(0);
+    // }
+    //
+    // streambuf::int_type uflow() override {
+    //   bufferSize = 10;
+    //   bufferIndex = 0;
+    //   buffer = (char*)realloc(buffer, sizeof(char)*bufferSize);
+    //   memset(buffer, 0, bufferSize);
+    //
+    //   int gotInput = 0, data;
+    //   while(!gotInput) {
+    //     gotInput = checkForInput();
+    //     if(!gotInput) emscripten_sleep(200);
+    //   }
+    //
+    //   while(!isEmpty()) {
+    //     streambuf::int_type input = getInput(1);
+    //
+    //     if(bufferSize - bufferIndex < 3) {
+    //       bufferSize += 10;
+    //       buffer = (char*)realloc(buffer, sizeof(char)*bufferSize);
+    //     }
+    //
+    //     buffer[bufferIndex++] = traits_type::to_char_type(input);
+    //   }
+    //   setg(buffer, buffer, buffer + bufferIndex);
+    //
+    //   EM_ASM_INT({
+    //     console.log(UTF8ToString($0));
+    //   }, buffer);
+    //   return traits_type::to_int_type(*gptr());
+    // }
+    streamsize xsgetn(char* s, streamsize n) {
+      int i = 0;
 
-    int uflow() override {
       int gotInput = 0, data;
       while(!gotInput) {
-        gotInput = EM_ASM_INT({{
-          console.log('Checking');
-          if(consoleInput === null) {
-            return 0;
-          } else {
-            return 1;
-          }
-        }}, 0);
+        gotInput = checkForInput();
         if(!gotInput) emscripten_sleep(200);
       }
+
+      while(!isEmpty() && i < n) {
+        streambuf::int_type input = getInput(1);
+        s[i++] = traits_type::to_char_type(input);
+      }
+      EM_ASM_INT({
+        console.log(UTF8ToString($0));
+      }, s);
+      return i;
+    }
+  private:
+    char* buffer;
+    int bufferSize, bufferIndex;
+
+    int isEmpty() {
       return EM_ASM_INT({(
-        if(consoleInput.trim() === "") {
+        if(consoleInput.trim() === "" || consoleInput == null) {
           flushConsoleInput();
-          return $0;
+          return 1;
+        } else {
+          return 0;
         }
-        var value = consoleInput.charCodeAt(0);
-        consoleInput = consoleInput.slice(1);
-        console.log(value, 'uflow');
-        return value;
-      )}, EOF);
+      )});
     }
-  };
 
-  struct AsmStream {
-    int id;
+    streambuf::int_type getInput(int advanceToNext) {
+      return EM_ASM_INT({(
+        console.log('Getting ', $0);
+        var value = consoleInput.charCodeAt(0);
+        if($0) {consoleInput = consoleInput.slice(1);}
+        return value;
+      )}, advanceToNext);
+    }
+
+    int checkForInput() {
+      return EM_ASM_INT({{
+        console.log('Checking');
+        if(consoleInput === null) {
+          return 0;
+        } else {
+          return 1;
+        }
+      }}, 0);
+    }
+
+  public:
+    AsmInStream() {
+      bufferSize = 10;
+      bufferIndex = 0;
+      buffer = new char[bufferSize];
+    }
+
+    ~AsmInStream() {
+      delete[] buffer;
+    }
   };
 
   AsmInStream _asmcin;
