@@ -70,13 +70,13 @@ namespace std {
 
   AsmInStream& operator>>(AsmInStream& inStream, double& data) {
     inStream.waitForInput();
-    inStream.getInputAsDouble<unsigned int>(data);
+    inStream.getInputAsDouble<double>(data);
     return inStream;
   }
 
   AsmInStream& operator>>(AsmInStream& inStream, char& data) {
     inStream.waitForInput();
-    inStream.getInputAsDouble<unsigned int>(data);
+    inStream.getInputAsDouble<char>(data);
     return inStream;
   }
 
